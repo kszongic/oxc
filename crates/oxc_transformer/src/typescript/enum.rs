@@ -4,7 +4,7 @@ use oxc_allocator::{TakeIn, Vec as ArenaVec};
 use oxc_ast::{NONE, ast::*};
 use oxc_ast_visit::{VisitMut, walk_mut};
 use oxc_data_structures::stack::NonEmptyStack;
-use oxc_semantic::{ScopeFlags, ScopeId, SymbolId};
+use oxc_semantic::{ScopeFlags, ScopeId};
 use oxc_span::{Ident, SPAN, Span};
 use oxc_syntax::{
     constant_value::ConstantValue,
@@ -14,20 +14,16 @@ use oxc_syntax::{
     symbol::SymbolFlags,
 };
 use oxc_traverse::{BoundIdentifier, Traverse};
-use rustc_hash::FxHashMap;
 
 use crate::{context::TraverseCtx, state::TransformState};
 
 pub struct TypeScriptEnum {
     optimize_const_enums: bool,
-    /// Mapping from const enum declaration SymbolId to the enum body ScopeId.
-    /// Used for inlining const enum member references.
-    const_enum_body_scopes: FxHashMap<SymbolId, ScopeId>,
 }
 
 impl TypeScriptEnum {
     pub fn new(optimize_const_enums: bool) -> Self {
-        Self { optimize_const_enums, const_enum_body_scopes: FxHashMap::default() }
+        Self { optimize_const_enums }
     }
 }
 
@@ -54,12 +50,8 @@ impl<'a> Traverse<'a, TransformState<'a>> for TypeScriptEnum {
     }
 
     fn enter_expression(&mut self, expr: &mut Expression<'a>, ctx: &mut TraverseCtx<'a>) {
-        if !self.optimize_const_enums {
-            return;
-        }
-
         if let Expression::StaticMemberExpression(member_expr) = expr
-            && let Some(value) = self.try_inline_const_enum_member(member_expr, ctx)
+            && let Some(value) = Self::try_inline_enum_member(member_expr, ctx)
         {
             // TODO: Attach a trailing block comment `/* EnumName.MemberName */` to the
             // inlined literal to match TypeScript/Babel behavior (e.g. `0 /* Direction.Up */`).
@@ -101,7 +93,7 @@ impl<'a> TypeScriptEnum {
     /// })(Foo || {});
     /// ```
     fn transform_ts_enum(
-        &mut self,
+        &self,
         decl: &mut TSEnumDeclaration<'a>,
         export_span: Option<Span>,
         ctx: &mut TraverseCtx<'a>,
@@ -110,15 +102,9 @@ impl<'a> TypeScriptEnum {
             return None;
         }
 
-        // Handle const enum optimization
+        // Handle const enum optimization: remove declaration entirely
+        // (references are inlined by enter_expression)
         if decl.r#const && self.optimize_const_enums {
-            // Store the mapping from enum symbol to body scope for reference inlining
-            let enum_symbol_id = decl.id.symbol_id();
-            let body_scope_id = decl.body.scope_id();
-            self.const_enum_body_scopes.insert(enum_symbol_id, body_scope_id);
-
-            // Remove the declaration entirely
-            // (references are inlined by enter_expression)
             return None;
         }
 
@@ -387,9 +373,9 @@ impl<'a> TypeScriptEnum {
     }
 
     /// Emit a const enum declaration as `var X = {}` placeholder for bundler mode.
-    /// Try to inline a const enum member access like `Direction.Up` to its literal value.
-    fn try_inline_const_enum_member(
-        &self,
+    /// Try to inline an enum member access like `Direction.Up` to its literal value.
+    /// Works for both const and regular enums when the member value is known.
+    fn try_inline_enum_member(
         expr: &StaticMemberExpression<'a>,
         ctx: &TraverseCtx<'a>,
     ) -> Option<ConstantValue> {
@@ -397,15 +383,16 @@ impl<'a> TypeScriptEnum {
         let ref_id = ident.reference_id.get()?;
         let symbol_id = ctx.scoping().get_reference(ref_id).symbol_id()?;
 
-        if !ctx.scoping().symbol_flags(symbol_id).is_const_enum() {
+        let flags = ctx.scoping().symbol_flags(symbol_id);
+        if !flags.is_const_enum() && !flags.contains(SymbolFlags::RegularEnum) {
             return None;
         }
 
-        let body_scope_id = self.const_enum_body_scopes.get(&symbol_id)?;
+        let body_scope_id = ctx.scoping().get_enum_body_scope(symbol_id)?;
         let property_name = &expr.property.name;
 
         let member_symbol_id =
-            ctx.scoping().get_binding(*body_scope_id, property_name.as_str().into())?;
+            ctx.scoping().get_binding(body_scope_id, property_name.as_str().into())?;
         ctx.scoping().get_enum_member_value(member_symbol_id).cloned()
     }
 }
