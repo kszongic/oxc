@@ -2369,7 +2369,9 @@ x Output mismatch
 x Output mismatch
 
 * optimize-const-enums/declare/input.ts
-x Output mismatch
+Bindings mismatch:
+after transform: ScopeId(0): ["A"]
+rebuilt        : ScopeId(0): []
 
 * optimize-const-enums/export-const-enum/input.ts
 x Output mismatch

@@ -29,45 +29,39 @@ impl TypeScriptEnum {
 
 impl<'a> Traverse<'a, TransformState<'a>> for TypeScriptEnum {
     fn enter_statement(&mut self, stmt: &mut Statement<'a>, ctx: &mut TraverseCtx<'a>) {
-        let new_stmt = match stmt {
+        match stmt {
             Statement::TSEnumDeclaration(ts_enum_decl) => {
-                self.transform_ts_enum(ts_enum_decl, None, ctx)
+                if let Some(new_stmt) = self.transform_ts_enum(ts_enum_decl, None, ctx) {
+                    *stmt = new_stmt;
+                } else {
+                    // Const enum removed by optimize_const_enums.
+                    // (declare enums are already removed by annotations.rs enter_statements)
+                    *stmt = ctx.ast.statement_empty(SPAN);
+                }
             }
             Statement::ExportNamedDeclaration(decl) => {
                 let span = decl.span;
-                if let Some(Declaration::TSEnumDeclaration(ts_enum_decl)) = &mut decl.declaration {
-                    self.transform_ts_enum(ts_enum_decl, Some(span), ctx)
-                } else {
-                    None
+                if let Some(Declaration::TSEnumDeclaration(ts_enum_decl)) = &mut decl.declaration
+                    && let Some(new_stmt) = self.transform_ts_enum(ts_enum_decl, Some(span), ctx)
+                {
+                    *stmt = new_stmt;
                 }
             }
-            _ => None,
-        };
-
-        if let Some(new_stmt) = new_stmt {
-            *stmt = new_stmt;
+            _ => {}
         }
     }
 
     fn enter_expression(&mut self, expr: &mut Expression<'a>, ctx: &mut TraverseCtx<'a>) {
-        if let Expression::StaticMemberExpression(member_expr) = expr
-            && let Some(value) = Self::try_inline_enum_member(member_expr, ctx)
-        {
-            // TODO: Attach a trailing block comment `/* EnumName.MemberName */` to the
-            // inlined literal to match TypeScript/Babel behavior (e.g. `0 /* Direction.Up */`).
-            // This requires support for synthetic comments with arbitrary text content,
-            // which the current oxc comment infrastructure (source-text-span-based) does not
-            // provide. Options:
-            // 1. Add an `annotation: Option<Atom<'a>>` field to NumericLiteral/StringLiteral
-            //    and print it as a trailing block comment in codegen.
-            // 2. Extend the Comment system to support non-source-text content.
-            let _enum_name = if let Expression::Identifier(ident) = &member_expr.object {
-                Some(ident.name.as_str())
-            } else {
-                None
-            };
-            let _member_name = member_expr.property.name.as_str();
-
+        let value = match expr {
+            Expression::StaticMemberExpression(member_expr) => {
+                Self::try_inline_enum_member(member_expr, ctx)
+            }
+            Expression::ComputedMemberExpression(member_expr) => {
+                Self::try_inline_computed_enum_member(member_expr, ctx)
+            }
+            _ => None,
+        };
+        if let Some(value) = value {
             *expr = match value {
                 ConstantValue::Number(n) => Self::get_initializer_expr(n, ctx),
                 ConstantValue::String(s) => {
@@ -102,9 +96,15 @@ impl<'a> TypeScriptEnum {
             return None;
         }
 
-        // Handle const enum optimization: remove declaration entirely
-        // (references are inlined by enter_expression)
-        if decl.r#const && self.optimize_const_enums {
+        // Remove non-exported const enum declarations when all members are evaluable.
+        // All same-file references are inlined by enter_expression.
+        // Exported const enums are kept — cross-module consumers are handled by the bundler.
+        // Const enums with non-evaluable members are also kept (references can't be inlined).
+        if decl.r#const
+            && self.optimize_const_enums
+            && export_span.is_none()
+            && Self::all_members_evaluable(decl, ctx)
+        {
             return None;
         }
 
@@ -348,6 +348,24 @@ impl<'a> TypeScriptEnum {
         statements
     }
 
+    /// Check if all members of an enum declaration have known constant values.
+    fn all_members_evaluable(decl: &TSEnumDeclaration<'a>, ctx: &TraverseCtx<'a>) -> bool {
+        let scope_id = decl.body.scope_id();
+        decl.body.members.iter().all(|member| match &member.id {
+            TSEnumMemberName::Identifier(ident) => ctx
+                .scoping()
+                .get_binding(scope_id, ident.name.as_str().into())
+                .and_then(|sym_id| ctx.scoping().get_enum_member_value(sym_id))
+                .is_some(),
+            TSEnumMemberName::String(lit) | TSEnumMemberName::ComputedString(lit) => ctx
+                .scoping()
+                .get_binding(scope_id, lit.value.as_str().into())
+                .and_then(|sym_id| ctx.scoping().get_enum_member_value(sym_id))
+                .is_some(),
+            TSEnumMemberName::ComputedTemplateString(_) => false,
+        })
+    }
+
     fn get_number_literal_expression(value: f64, ctx: &TraverseCtx<'a>) -> Expression<'a> {
         ctx.ast.expression_numeric_literal(SPAN, value, None, NumberBase::Decimal)
     }
@@ -372,14 +390,32 @@ impl<'a> TypeScriptEnum {
         }
     }
 
-    /// Emit a const enum declaration as `var X = {}` placeholder for bundler mode.
-    /// Try to inline an enum member access like `Direction.Up` to its literal value.
-    /// Works for both const and regular enums when the member value is known.
+    /// Try to inline `Direction.Up` to its literal value.
     fn try_inline_enum_member(
         expr: &StaticMemberExpression<'a>,
         ctx: &TraverseCtx<'a>,
     ) -> Option<ConstantValue> {
         let Expression::Identifier(ident) = &expr.object else { return None };
+        Self::resolve_enum_member(ident, expr.property.name.as_str(), ctx)
+    }
+
+    /// Try to inline `Foo["%/*"]` to its literal value.
+    fn try_inline_computed_enum_member(
+        expr: &ComputedMemberExpression<'a>,
+        ctx: &TraverseCtx<'a>,
+    ) -> Option<ConstantValue> {
+        let Expression::Identifier(ident) = &expr.object else { return None };
+        let Expression::StringLiteral(prop) = &expr.expression else { return None };
+        Self::resolve_enum_member(ident, prop.value.as_str(), ctx)
+    }
+
+    /// Resolve an enum member value by identifier and property name.
+    /// Works for both const and regular enums when the member value is known.
+    fn resolve_enum_member(
+        ident: &IdentifierReference<'a>,
+        property_name: &str,
+        ctx: &TraverseCtx<'a>,
+    ) -> Option<ConstantValue> {
         let ref_id = ident.reference_id.get()?;
         let symbol_id = ctx.scoping().get_reference(ref_id).symbol_id()?;
 
@@ -389,11 +425,9 @@ impl<'a> TypeScriptEnum {
         }
 
         let body_scopes = ctx.scoping().get_enum_body_scopes(symbol_id)?;
-        let property_name = &expr.property.name;
-
         for &body_scope_id in body_scopes {
             if let Some(member_symbol_id) =
-                ctx.scoping().get_binding(body_scope_id, property_name.as_str().into())
+                ctx.scoping().get_binding(body_scope_id, property_name.into())
                 && let Some(value) = ctx.scoping().get_enum_member_value(member_symbol_id)
             {
                 return Some(value.clone());

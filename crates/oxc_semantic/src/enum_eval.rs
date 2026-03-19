@@ -145,11 +145,7 @@ fn evaluate_ref(
             // Handle cross-enum references like `A.X`
             let Expression::Identifier(obj_ident) = &member_expr.object else { return None };
             let obj_symbol_id = resolve_identifier_symbol(obj_ident, scope_id, scoping)?;
-            find_in_enum_body_scopes(
-                member_expr.property.name.as_str(),
-                obj_symbol_id,
-                scoping,
-            )
+            find_in_enum_body_scopes(member_expr.property.name.as_str(), obj_symbol_id, scoping)
         }
         Expression::ComputedMemberExpression(member_expr) => {
             // Handle cross-enum references like `A["X"]`
@@ -292,29 +288,37 @@ fn find_in_enum_body_scopes(
 }
 
 /// For sibling enum declarations (`enum x { y } enum x { z = y + 1 }`),
-/// find a bare identifier by searching all body scopes of the parent enum.
+/// find a bare identifier by searching sibling body scopes of the *same* enum.
+/// Only searches the enum that owns `current_scope_id`, avoiding false positives
+/// when two different enums in the same parent scope share a member name.
 fn find_in_sibling_enum_scopes(
     name: &str,
     current_scope_id: ScopeId,
     scoping: &Scoping,
 ) -> Option<ConstantValue> {
-    // Walk up to find the parent scope (where the enum declaration lives)
     let parent_scope = scoping.scope_parent_id(current_scope_id)?;
 
-    // Find enum symbols in the parent scope and search their body scopes
+    // Find which enum symbol owns the current scope
     for &sym_id in scoping.get_bindings(parent_scope).values() {
         let flags = scoping.symbol_flags(sym_id);
-        if (flags.is_const_enum() || flags.contains(SymbolFlags::RegularEnum))
-            && let Some(body_scopes) = scoping.get_enum_body_scopes(sym_id)
-        {
-            for &body_scope in body_scopes {
-                if let Some(member_sym) = scoping.get_binding(body_scope, name.into())
-                    && let Some(value) = scoping.get_enum_member_value(member_sym)
-                {
-                    return Some(value.clone());
-                }
+        if !(flags.is_const_enum() || flags.contains(SymbolFlags::RegularEnum)) {
+            continue;
+        }
+        let Some(body_scopes) = scoping.get_enum_body_scopes(sym_id) else { continue };
+        // Only search if this enum owns the current scope
+        if !body_scopes.contains(&current_scope_id) {
+            continue;
+        }
+        // Found our enum — search all its body scopes for the member
+        for &body_scope in body_scopes {
+            if body_scope != current_scope_id
+                && let Some(member_sym) = scoping.get_binding(body_scope, name.into())
+                && let Some(value) = scoping.get_enum_member_value(member_sym)
+            {
+                return Some(value.clone());
             }
         }
+        return None; // Found our enum but member not in sibling scopes
     }
     None
 }
