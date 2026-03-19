@@ -480,8 +480,13 @@ impl IdentifierReferenceRename<'_, '_> {
     fn should_reference_enum_member(&self, ident: &IdentifierReference<'_>) -> bool {
         let scoping = self.ctx.scoping.scoping();
 
-        // Don't need to rename the identifier if it's not a member of the enum
-        if scoping.get_binding(self.enum_scope_id, ident.name).is_none() {
+        // Don't need to rename the identifier if it's not an enum member in this scope.
+        // Check both that the binding exists AND that it has the EnumMember flag,
+        // because the IIFE parameter (same name as the enum) is also in this scope.
+        let is_enum_member = scoping
+            .get_binding(self.enum_scope_id, ident.name)
+            .is_some_and(|sym_id| scoping.symbol_flags(sym_id).is_enum_member());
+        if !is_enum_member {
             return false;
         }
 
