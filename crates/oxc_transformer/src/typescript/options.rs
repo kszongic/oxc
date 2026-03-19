@@ -89,11 +89,6 @@ pub struct TypeScriptOptions {
     /// and removing the enum declaration.
     pub optimize_const_enums: bool,
 
-    /// When true, replace const enum declarations with `var X = {}` placeholder
-    /// instead of removing them entirely. Used by bundlers (e.g., rolldown)
-    /// for cross-module resolution.
-    pub emit_const_enum_placeholder: bool,
-
     // Preset options
     /// Modifies extensions in import and export declarations.
     ///
@@ -115,7 +110,6 @@ impl Default for TypeScriptOptions {
             allow_declare_fields: default_as_true(),
             remove_class_fields_without_initializer: false,
             optimize_const_enums: false,
-            emit_const_enum_placeholder: false,
             rewrite_import_extensions: None,
         }
     }

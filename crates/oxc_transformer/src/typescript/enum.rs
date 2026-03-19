@@ -20,19 +20,14 @@ use crate::{context::TraverseCtx, state::TransformState};
 
 pub struct TypeScriptEnum {
     optimize_const_enums: bool,
-    emit_const_enum_placeholder: bool,
     /// Mapping from const enum declaration SymbolId to the enum body ScopeId.
     /// Used for inlining const enum member references.
     const_enum_body_scopes: FxHashMap<SymbolId, ScopeId>,
 }
 
 impl TypeScriptEnum {
-    pub fn new(optimize_const_enums: bool, emit_const_enum_placeholder: bool) -> Self {
-        Self {
-            optimize_const_enums,
-            emit_const_enum_placeholder,
-            const_enum_body_scopes: FxHashMap::default(),
-        }
+    pub fn new(optimize_const_enums: bool) -> Self {
+        Self { optimize_const_enums, const_enum_body_scopes: FxHashMap::default() }
     }
 }
 
@@ -59,7 +54,7 @@ impl<'a> Traverse<'a, TransformState<'a>> for TypeScriptEnum {
     }
 
     fn enter_expression(&mut self, expr: &mut Expression<'a>, ctx: &mut TraverseCtx<'a>) {
-        if !self.optimize_const_enums || self.emit_const_enum_placeholder {
+        if !self.optimize_const_enums {
             return;
         }
 
@@ -122,11 +117,7 @@ impl<'a> TypeScriptEnum {
             let body_scope_id = decl.body.scope_id();
             self.const_enum_body_scopes.insert(enum_symbol_id, body_scope_id);
 
-            if self.emit_const_enum_placeholder {
-                // Bundler mode: emit `var X = {}` placeholder
-                return Some(Self::emit_const_enum_as_placeholder(decl, export_span, ctx));
-            }
-            // Standalone mode: remove the declaration entirely
+            // Remove the declaration entirely
             // (references are inlined by enter_expression)
             return None;
         }
@@ -396,29 +387,6 @@ impl<'a> TypeScriptEnum {
     }
 
     /// Emit a const enum declaration as `var X = {}` placeholder for bundler mode.
-    fn emit_const_enum_as_placeholder(
-        decl: &TSEnumDeclaration<'a>,
-        export_span: Option<Span>,
-        ctx: &TraverseCtx<'a>,
-    ) -> Statement<'a> {
-        let ast = ctx.ast;
-        let span = decl.span;
-        let kind = VariableDeclarationKind::Var;
-        let binding_identifier = decl.id.clone();
-        let binding = BindingPattern::BindingIdentifier(ctx.alloc(binding_identifier));
-        let init = ast.expression_object(SPAN, ast.vec());
-        let declarator = ast.variable_declarator(span, kind, binding, NONE, Some(init), false);
-        let decls = ast.vec1(declarator);
-        let var_decl = ast.declaration_variable(span, kind, decls, false);
-
-        if let Some(export_span) = export_span {
-            let declaration = ast.plain_export_named_declaration_declaration(export_span, var_decl);
-            Statement::ExportNamedDeclaration(declaration)
-        } else {
-            Statement::from(var_decl)
-        }
-    }
-
     /// Try to inline a const enum member access like `Direction.Up` to its literal value.
     fn try_inline_const_enum_member(
         &self,
