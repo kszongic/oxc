@@ -9,7 +9,7 @@ use oxc_syntax::{
     number::ToJsString,
     operator::{BinaryOperator, UnaryOperator},
     scope::ScopeId,
-    symbol::SymbolId,
+    symbol::{SymbolFlags, SymbolId},
 };
 
 use crate::scoping::Scoping;
@@ -24,7 +24,7 @@ pub fn evaluate_enum_members(decl: &TSEnumDeclaration<'_>, scoping: &mut Scoping
 
     // Store enum declaration → body scope mapping for cross-enum references
     if let Some(enum_symbol_id) = decl.id.symbol_id.get() {
-        scoping.set_enum_body_scope(enum_symbol_id, scope_id);
+        scoping.add_enum_body_scope(enum_symbol_id, scope_id);
     }
 
     let mut prev_value: Option<ConstantValue> = None;
@@ -128,22 +128,28 @@ fn evaluate_ref(
                 return scoping.get_enum_member_value(symbol_id).cloned();
             }
 
-            // Fallback: look up the identifier name directly as a binding in the
-            // enum body scope. This handles cross-member references like
-            // `enum A { X = 1, Y = X + 1 }` where the reference to `X` may not
-            // yet be resolved during semantic analysis.
-            let symbol_id = scoping.get_binding(scope_id, ident.name.as_str().into())?;
-            scoping.get_enum_member_value(symbol_id).cloned()
+            // Fallback: look up the identifier name as a binding in the current
+            // enum body scope. Handles `enum A { X = 1, Y = X + 1 }`.
+            if let Some(symbol_id) = scoping.get_binding(scope_id, ident.name.as_str().into())
+                && let Some(value) = scoping.get_enum_member_value(symbol_id)
+            {
+                return Some(value.clone());
+            }
+
+            // Sibling enum fallback: for merged enums like `enum x { y = 0 } enum x { z = y + 1 }`,
+            // the bare `y` is in the first declaration's body scope. Search all body scopes
+            // of the same enum (identified by walking up to the parent enum symbol).
+            find_in_sibling_enum_scopes(ident.name.as_str(), scope_id, scoping)
         }
         Expression::StaticMemberExpression(member_expr) => {
             // Handle cross-enum references like `A.X`
             let Expression::Identifier(obj_ident) = &member_expr.object else { return None };
-
             let obj_symbol_id = resolve_identifier_symbol(obj_ident, scope_id, scoping)?;
-            let body_scope = scoping.get_enum_body_scope(obj_symbol_id)?;
-            let member_symbol_id =
-                scoping.get_binding(body_scope, member_expr.property.name.as_str().into())?;
-            scoping.get_enum_member_value(member_symbol_id).cloned()
+            find_in_enum_body_scopes(
+                member_expr.property.name.as_str(),
+                obj_symbol_id,
+                scoping,
+            )
         }
         Expression::ComputedMemberExpression(member_expr) => {
             // Handle cross-enum references like `A["X"]`
@@ -151,12 +157,8 @@ fn evaluate_ref(
             let Expression::StringLiteral(prop_lit) = &member_expr.expression else {
                 return None;
             };
-
             let obj_symbol_id = resolve_identifier_symbol(obj_ident, scope_id, scoping)?;
-            let body_scope = scoping.get_enum_body_scope(obj_symbol_id)?;
-            let member_symbol_id =
-                scoping.get_binding(body_scope, prop_lit.value.as_str().into())?;
-            scoping.get_enum_member_value(member_symbol_id).cloned()
+            find_in_enum_body_scopes(prop_lit.value.as_str(), obj_symbol_id, scoping)
         }
         _ => None,
     }
@@ -269,4 +271,50 @@ fn eval_unary_expression(
         UnaryOperator::BitwiseNot => Some(ConstantValue::Number(f64::from(!value.to_int_32()))),
         _ => None,
     }
+}
+
+/// Search all body scopes of an enum for a member by name.
+/// Handles merged enums where `get_enum_body_scopes` returns multiple scopes.
+fn find_in_enum_body_scopes(
+    member_name: &str,
+    enum_symbol_id: SymbolId,
+    scoping: &Scoping,
+) -> Option<ConstantValue> {
+    let body_scopes = scoping.get_enum_body_scopes(enum_symbol_id)?;
+    for &body_scope in body_scopes {
+        if let Some(member_symbol_id) = scoping.get_binding(body_scope, member_name.into())
+            && let Some(value) = scoping.get_enum_member_value(member_symbol_id)
+        {
+            return Some(value.clone());
+        }
+    }
+    None
+}
+
+/// For sibling enum declarations (`enum x { y } enum x { z = y + 1 }`),
+/// find a bare identifier by searching all body scopes of the parent enum.
+fn find_in_sibling_enum_scopes(
+    name: &str,
+    current_scope_id: ScopeId,
+    scoping: &Scoping,
+) -> Option<ConstantValue> {
+    // Walk up to find the parent scope (where the enum declaration lives)
+    let parent_scope = scoping.scope_parent_id(current_scope_id)?;
+
+    // Find enum symbols in the parent scope and search their body scopes
+    for &sym_id in scoping.get_bindings(parent_scope).values() {
+        let flags = scoping.symbol_flags(sym_id);
+        if (flags.is_const_enum() || flags.contains(SymbolFlags::RegularEnum))
+            && let Some(body_scopes) = scoping.get_enum_body_scopes(sym_id)
+        {
+            for &body_scope in body_scopes {
+                if let Some(member_sym) = scoping.get_binding(body_scope, name.into())
+                    && let Some(value) = scoping.get_enum_member_value(member_sym)
+                {
+                    return Some(value.clone());
+                }
+            }
+        }
+    }
+    None
 }

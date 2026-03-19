@@ -388,12 +388,18 @@ impl<'a> TypeScriptEnum {
             return None;
         }
 
-        let body_scope_id = ctx.scoping().get_enum_body_scope(symbol_id)?;
+        let body_scopes = ctx.scoping().get_enum_body_scopes(symbol_id)?;
         let property_name = &expr.property.name;
 
-        let member_symbol_id =
-            ctx.scoping().get_binding(body_scope_id, property_name.as_str().into())?;
-        ctx.scoping().get_enum_member_value(member_symbol_id).cloned()
+        for &body_scope_id in body_scopes {
+            if let Some(member_symbol_id) =
+                ctx.scoping().get_binding(body_scope_id, property_name.as_str().into())
+                && let Some(value) = ctx.scoping().get_enum_member_value(member_symbol_id)
+            {
+                return Some(value.clone());
+            }
+        }
+        None
     }
 }
 

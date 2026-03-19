@@ -100,9 +100,10 @@ pub struct Scoping {
     /// Only contains entries for members whose values could be statically evaluated.
     pub(crate) enum_member_values: FxHashMap<SymbolId, ConstantValue>,
 
-    /// Maps enum declaration SymbolId → enum body ScopeId.
+    /// Maps enum declaration SymbolId → enum body ScopeIds (one per declaration).
+    /// Multiple entries per key for merged enum declarations (e.g., `enum x { A } enum x { B }`).
     /// Used to resolve cross-enum member references like `A.X` in enum initializers.
-    pub(crate) enum_body_scopes: FxHashMap<SymbolId, ScopeId>,
+    pub(crate) enum_body_scopes: FxHashMap<SymbolId, Vec<ScopeId>>,
 
     /* Scope Tree - single allocation for all scope-indexed flat fields */
     scope_table: ScopeTable,
@@ -623,14 +624,16 @@ impl Scoping {
         std::mem::take(&mut self.enum_member_values)
     }
 
-    /// Get the body scope for an enum declaration symbol.
-    pub fn get_enum_body_scope(&self, symbol_id: SymbolId) -> Option<ScopeId> {
-        self.enum_body_scopes.get(&symbol_id).copied()
+    /// Get the body scopes for an enum declaration symbol.
+    /// Returns multiple scopes for merged enum declarations.
+    pub fn get_enum_body_scopes(&self, symbol_id: SymbolId) -> Option<&Vec<ScopeId>> {
+        self.enum_body_scopes.get(&symbol_id)
     }
 
-    /// Store the mapping from an enum declaration symbol to its body scope.
-    pub(crate) fn set_enum_body_scope(&mut self, symbol_id: SymbolId, scope_id: ScopeId) {
-        self.enum_body_scopes.insert(symbol_id, scope_id);
+    /// Add a body scope for an enum declaration symbol.
+    /// Appends to the list (supports merged enum declarations).
+    pub(crate) fn add_enum_body_scope(&mut self, symbol_id: SymbolId, scope_id: ScopeId) {
+        self.enum_body_scopes.entry(symbol_id).or_default().push(scope_id);
     }
 }
 
