@@ -66,6 +66,21 @@ impl<'a> Traverse<'a, TransformState<'a>> for TypeScriptEnum {
         if let Expression::StaticMemberExpression(member_expr) = expr
             && let Some(value) = self.try_inline_const_enum_member(member_expr, ctx)
         {
+            // TODO: Attach a trailing block comment `/* EnumName.MemberName */` to the
+            // inlined literal to match TypeScript/Babel behavior (e.g. `0 /* Direction.Up */`).
+            // This requires support for synthetic comments with arbitrary text content,
+            // which the current oxc comment infrastructure (source-text-span-based) does not
+            // provide. Options:
+            // 1. Add an `annotation: Option<Atom<'a>>` field to NumericLiteral/StringLiteral
+            //    and print it as a trailing block comment in codegen.
+            // 2. Extend the Comment system to support non-source-text content.
+            let _enum_name = if let Expression::Identifier(ident) = &member_expr.object {
+                Some(ident.name.as_str())
+            } else {
+                None
+            };
+            let _member_name = member_expr.property.name.as_str();
+
             *expr = match value {
                 ConstantValue::Number(n) => Self::get_initializer_expr(n, ctx),
                 ConstantValue::String(s) => {
