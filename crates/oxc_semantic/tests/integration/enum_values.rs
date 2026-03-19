@@ -121,6 +121,24 @@ fn template_literal() {
 }
 
 #[test]
+fn cross_enum_member_expression() {
+    let source = "enum A { X = 1 } enum B { Y = A.X + 1 }";
+    assert_eq!(get_enum_member_value(source, "Y"), Some(ConstantValue::Number(2.0)));
+}
+
+#[test]
+fn cross_enum_computed_member_expression() {
+    let source = r#"enum A { X = 1 } enum B { Y = A["X"] + 1 }"#;
+    assert_eq!(get_enum_member_value(source, "Y"), Some(ConstantValue::Number(2.0)));
+}
+
+#[test]
+fn cross_enum_string_value() {
+    let source = r#"enum A { X = "hello" } enum B { Y = A.X }"#;
+    assert_eq!(get_enum_member_value(source, "Y"), Some(ConstantValue::String("hello".into())));
+}
+
+#[test]
 fn bitwise_operations() {
     let source = "enum A { X = 0xFF & 0x0F, Y = 1 | 2, Z = 1 ^ 3 }";
     assert_eq!(get_enum_member_value(source, "X"), Some(ConstantValue::Number(15.0)));

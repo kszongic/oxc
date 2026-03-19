@@ -100,6 +100,10 @@ pub struct Scoping {
     /// Only contains entries for members whose values could be statically evaluated.
     pub(crate) enum_member_values: FxHashMap<SymbolId, ConstantValue>,
 
+    /// Maps enum declaration SymbolId → enum body ScopeId.
+    /// Used to resolve cross-enum member references like `A.X` in enum initializers.
+    pub(crate) enum_body_scopes: FxHashMap<SymbolId, ScopeId>,
+
     /* Scope Tree - single allocation for all scope-indexed flat fields */
     scope_table: ScopeTable,
 
@@ -119,6 +123,7 @@ impl Default for Scoping {
             references: IndexVec::new(),
             no_side_effects: FxHashSet::default(),
             enum_member_values: FxHashMap::default(),
+            enum_body_scopes: FxHashMap::default(),
             scope_table: ScopeTable::new(),
             cell: ScopingCell::new(Allocator::default(), |allocator| ScopingInner {
                 symbol_names: ArenaVec::new_in(allocator),
@@ -612,6 +617,16 @@ impl Scoping {
     pub fn take_enum_member_values(&mut self) -> FxHashMap<SymbolId, ConstantValue> {
         std::mem::take(&mut self.enum_member_values)
     }
+
+    /// Get the body scope for an enum declaration symbol.
+    pub fn get_enum_body_scope(&self, symbol_id: SymbolId) -> Option<ScopeId> {
+        self.enum_body_scopes.get(&symbol_id).copied()
+    }
+
+    /// Store the mapping from an enum declaration symbol to its body scope.
+    pub(crate) fn set_enum_body_scope(&mut self, symbol_id: SymbolId, scope_id: ScopeId) {
+        self.enum_body_scopes.insert(symbol_id, scope_id);
+    }
 }
 
 /// Scope Tree Methods
@@ -942,6 +957,7 @@ impl Scoping {
             references: self.references.clone(),
             no_side_effects: self.no_side_effects.clone(),
             enum_member_values: self.enum_member_values.clone(),
+            enum_body_scopes: self.enum_body_scopes.clone(),
             scope_table: self.scope_table.clone(),
             cell: {
                 let allocator = Allocator::with_capacity(used_bytes);

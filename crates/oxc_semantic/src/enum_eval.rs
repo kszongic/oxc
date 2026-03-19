@@ -1,5 +1,6 @@
 use oxc_ast::ast::{
-    BinaryExpression, Expression, TSEnumDeclaration, TSEnumMemberName, UnaryExpression,
+    BinaryExpression, Expression, IdentifierReference, TSEnumDeclaration, TSEnumMemberName,
+    UnaryExpression,
 };
 use oxc_ecmascript::{ToInt32, ToUint32};
 use oxc_span::CompactStr;
@@ -8,6 +9,7 @@ use oxc_syntax::{
     number::ToJsString,
     operator::{BinaryOperator, UnaryOperator},
     scope::ScopeId,
+    symbol::SymbolId,
 };
 
 use crate::scoping::Scoping;
@@ -19,6 +21,12 @@ use crate::scoping::Scoping;
 /// pipeline.
 pub fn evaluate_enum_members(decl: &TSEnumDeclaration<'_>, scoping: &mut Scoping) {
     let Some(scope_id) = decl.body.scope_id.get() else { return };
+
+    // Store enum declaration → body scope mapping for cross-enum references
+    if let Some(enum_symbol_id) = decl.id.symbol_id.get() {
+        scoping.set_enum_body_scope(enum_symbol_id, scope_id);
+    }
+
     let mut prev_value: Option<ConstantValue> = None;
 
     for member in &decl.body.members {
@@ -127,10 +135,47 @@ fn evaluate_ref(
             let symbol_id = scoping.get_binding(scope_id, ident.name.as_str().into())?;
             scoping.get_enum_member_value(symbol_id).cloned()
         }
-        // MemberExpression (Enum.Member) cross-enum references are not yet supported.
-        // This matches the transformer's existing TODO.
+        Expression::StaticMemberExpression(member_expr) => {
+            // Handle cross-enum references like `A.X`
+            let Expression::Identifier(obj_ident) = &member_expr.object else { return None };
+
+            let obj_symbol_id = resolve_identifier_symbol(obj_ident, scope_id, scoping)?;
+            let body_scope = scoping.get_enum_body_scope(obj_symbol_id)?;
+            let member_symbol_id =
+                scoping.get_binding(body_scope, member_expr.property.name.as_str().into())?;
+            scoping.get_enum_member_value(member_symbol_id).cloned()
+        }
+        Expression::ComputedMemberExpression(member_expr) => {
+            // Handle cross-enum references like `A["X"]`
+            let Expression::Identifier(obj_ident) = &member_expr.object else { return None };
+            let Expression::StringLiteral(prop_lit) = &member_expr.expression else {
+                return None;
+            };
+
+            let obj_symbol_id = resolve_identifier_symbol(obj_ident, scope_id, scoping)?;
+            let body_scope = scoping.get_enum_body_scope(obj_symbol_id)?;
+            let member_symbol_id =
+                scoping.get_binding(body_scope, prop_lit.value.as_str().into())?;
+            scoping.get_enum_member_value(member_symbol_id).cloned()
+        }
         _ => None,
     }
+}
+
+/// Resolve an identifier to its symbol, trying the resolved reference first,
+/// then falling back to scope binding lookup. The fallback is needed because
+/// references may not yet be resolved during semantic analysis.
+fn resolve_identifier_symbol(
+    ident: &IdentifierReference<'_>,
+    scope_id: ScopeId,
+    scoping: &Scoping,
+) -> Option<SymbolId> {
+    if let Some(ref_id) = ident.reference_id.get()
+        && let Some(symbol_id) = scoping.get_reference(ref_id).symbol_id()
+    {
+        return Some(symbol_id);
+    }
+    scoping.find_binding(scope_id, ident.name.as_str().into())
 }
 
 fn eval_binary_expression(
