@@ -441,12 +441,9 @@ impl IdentifierReferenceRename<'_, '_> {
     fn should_reference_enum_member(&self, ident: &IdentifierReference<'_>) -> bool {
         let scoping = self.ctx.scoping.scoping();
 
-        // Don't need to rename the identifier if it's not an enum member in this scope.
-        // Check both that the binding exists AND that it has the EnumMember flag,
-        // because the IIFE parameter (same name as the enum) is also in this scope.
-        let is_enum_member = scoping
-            .get_binding(self.enum_scope_id, ident.name)
-            .is_some_and(|sym_id| scoping.symbol_flags(sym_id).is_enum_member());
+        // Check if this name is an enum member in the current body scope or any
+        // sibling body scope (for merged enums like `enum Foo { A }; enum Foo { B = A }`).
+        let is_enum_member = self.is_name_in_enum_scopes(scoping, ident.name.as_str());
         if !is_enum_member {
             return false;
         }
@@ -484,6 +481,39 @@ impl IdentifierReferenceRename<'_, '_> {
             //                ^ This should be renamed to Foo.A
             // ```
             || !self.scope_stack.contains(&symbol_scope_id)
+    }
+
+    /// Check if a name exists as an EnumMember binding in the current enum body scope
+    /// or any sibling body scope (for merged enum declarations).
+    fn is_name_in_enum_scopes(&self, scoping: &oxc_semantic::Scoping, name: &str) -> bool {
+        // First check the current body scope
+        if scoping
+            .get_binding(self.enum_scope_id, name.into())
+            .is_some_and(|sym_id| scoping.symbol_flags(sym_id).is_enum_member())
+        {
+            return true;
+        }
+
+        // Check sibling body scopes of the SAME enum (for merged declarations).
+        // Only check the enum with the same name to avoid false positives from
+        // other enums in the same scope (e.g., `var x = 10; enum Foo { c = b + x }` where
+        // `x` is an outer variable, not enum member, even if another `enum Merge { x }` exists).
+        if let Some(parent_scope) = scoping.scope_parent_id(self.enum_scope_id)
+            && let Some(enum_sym_id) =
+                scoping.get_binding(parent_scope, self.enum_name.as_str().into())
+            && let Some(body_scopes) = scoping.get_enum_body_scopes(enum_sym_id)
+        {
+            for &body_scope in body_scopes {
+                if body_scope != self.enum_scope_id
+                    && scoping
+                        .get_binding(body_scope, name.into())
+                        .is_some_and(|s| scoping.symbol_flags(s).is_enum_member())
+                {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }
 
