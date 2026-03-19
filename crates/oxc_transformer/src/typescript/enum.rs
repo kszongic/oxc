@@ -52,6 +52,10 @@ impl<'a> Traverse<'a, TransformState<'a>> for TypeScriptEnum {
     }
 
     fn enter_expression(&mut self, expr: &mut Expression<'a>, ctx: &mut TraverseCtx<'a>) {
+        if !self.optimize_const_enums {
+            return;
+        }
+
         let value = match expr {
             Expression::StaticMemberExpression(member_expr) => {
                 Self::try_inline_enum_member(member_expr, ctx)
@@ -409,8 +413,7 @@ impl<'a> TypeScriptEnum {
         Self::resolve_enum_member(ident, prop.value.as_str(), ctx)
     }
 
-    /// Resolve an enum member value by identifier and property name.
-    /// Works for both const and regular enums when the member value is known.
+    /// Resolve a const enum member value by identifier and property name.
     fn resolve_enum_member(
         ident: &IdentifierReference<'a>,
         property_name: &str,
@@ -419,8 +422,7 @@ impl<'a> TypeScriptEnum {
         let ref_id = ident.reference_id.get()?;
         let symbol_id = ctx.scoping().get_reference(ref_id).symbol_id()?;
 
-        let flags = ctx.scoping().symbol_flags(symbol_id);
-        if !flags.is_const_enum() && !flags.contains(SymbolFlags::RegularEnum) {
+        if !ctx.scoping().symbol_flags(symbol_id).is_const_enum() {
             return None;
         }
 

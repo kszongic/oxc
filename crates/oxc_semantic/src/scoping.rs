@@ -618,12 +618,6 @@ impl Scoping {
         self.enum_member_values.insert(symbol_id, value);
     }
 
-    /// Take all enum member values out of this Scoping.
-    /// Used by rolldown to extract values before scoping is rebuilt.
-    pub fn take_enum_member_values(&mut self) -> FxHashMap<SymbolId, ConstantValue> {
-        std::mem::take(&mut self.enum_member_values)
-    }
-
     /// Get the body scopes for an enum declaration symbol.
     /// Returns multiple scopes for merged enum declarations.
     pub fn get_enum_body_scopes(&self, symbol_id: SymbolId) -> Option<&Vec<ScopeId>> {

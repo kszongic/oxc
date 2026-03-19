@@ -145,3 +145,10 @@ fn bitwise_operations() {
     assert_eq!(get_enum_member_value(source, "Y"), Some(ConstantValue::Number(3.0)));
     assert_eq!(get_enum_member_value(source, "Z"), Some(ConstantValue::Number(2.0)));
 }
+
+#[test]
+fn merged_enum_cross_declaration_reference() {
+    let source = "enum Foo { A = 1 } enum Foo { B = A + 1 }";
+    assert_eq!(get_enum_member_value(source, "A"), Some(ConstantValue::Number(1.0)));
+    assert_eq!(get_enum_member_value(source, "B"), Some(ConstantValue::Number(2.0)));
+}

@@ -65,7 +65,7 @@ export class Foo {
   mixedProp;
   computedProp;
   method(param) {
-    return 1;
+    return NumberEnum.a;
   }
 }
 
