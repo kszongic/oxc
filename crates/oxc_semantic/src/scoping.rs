@@ -602,6 +602,11 @@ impl Scoping {
         &self.no_side_effects
     }
 
+    /// Get all computed constant values for enum members.
+    pub fn enum_member_values(&self) -> &FxHashMap<SymbolId, ConstantValue> {
+        &self.enum_member_values
+    }
+
     /// Get the computed constant value for an enum member symbol.
     pub fn get_enum_member_value(&self, symbol_id: SymbolId) -> Option<&ConstantValue> {
         self.enum_member_values.get(&symbol_id)
