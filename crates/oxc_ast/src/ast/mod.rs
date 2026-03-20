@@ -183,6 +183,7 @@ pub use oxc_syntax::{
 };
 
 pub(crate) mod comment;
+pub mod compact;
 pub(crate) mod js;
 pub(crate) mod jsx;
 pub(crate) mod literal;
