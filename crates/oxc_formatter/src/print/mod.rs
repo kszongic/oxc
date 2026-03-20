@@ -1392,8 +1392,7 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSInterfaceDeclaration<'a>> {
                     ]
                 );
             } else {
-                let format_extends =
-                    format_with(|f| write!(f, ["extends", space(), extends]));
+                let format_extends = format_with(|f| write!(f, ["extends", space(), extends]));
                 if group_mode {
                     write!(f, [soft_line_break_or_space(), group(&format_extends)]);
                 } else {
