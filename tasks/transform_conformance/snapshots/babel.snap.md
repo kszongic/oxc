@@ -1184,7 +1184,9 @@ after transform: ["T", "x"]
 rebuilt        : ["x"]
 
 * opts/optimizeConstEnums/input.ts
-x Output mismatch
+Bindings mismatch:
+after transform: ScopeId(0): ["A"]
+rebuilt        : ScopeId(0): []
 
 * opts/rewriteImportExtensions/input.ts
 x Output mismatch
@@ -2363,7 +2365,9 @@ after transform: SymbolId(0): Span { start: 10, end: 11 }
 rebuilt        : SymbolId(0): Span { start: 0, end: 0 }
 
 * optimize-const-enums/custom-values/input.ts
-x Output mismatch
+Bindings mismatch:
+after transform: ScopeId(0): ["A"]
+rebuilt        : ScopeId(0): []
 
 * optimize-const-enums/custom-values-exported/input.ts
 x Output mismatch
@@ -2386,13 +2390,37 @@ x Output mismatch
 x Output mismatch
 
 * optimize-const-enums/local/input.ts
-x Output mismatch
+Bindings mismatch:
+after transform: ScopeId(0): ["A"]
+rebuilt        : ScopeId(0): []
+Reference symbol mismatch for "A":
+after transform: SymbolId(0) "A"
+rebuilt        : <None>
+Reference symbol mismatch for "A":
+after transform: SymbolId(0) "A"
+rebuilt        : <None>
+Unresolved references mismatch:
+after transform: []
+rebuilt        : ["A"]
 
 * optimize-const-enums/local-shadowed/input.ts
-x Output mismatch
+Bindings mismatch:
+after transform: ScopeId(0): ["A"]
+rebuilt        : ScopeId(0): []
 
 * optimize-const-enums/merged/input.ts
-x Output mismatch
+Bindings mismatch:
+after transform: ScopeId(0): ["A"]
+rebuilt        : ScopeId(0): []
+Reference symbol mismatch for "A":
+after transform: SymbolId(0) "A"
+rebuilt        : <None>
+Reference symbol mismatch for "A":
+after transform: SymbolId(0) "A"
+rebuilt        : <None>
+Unresolved references mismatch:
+after transform: []
+rebuilt        : ["A"]
 
 * optimize-const-enums/merged-exported/input.ts
 x Output mismatch

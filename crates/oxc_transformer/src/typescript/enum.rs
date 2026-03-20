@@ -28,21 +28,29 @@ impl TypeScriptEnum {
 }
 
 impl<'a> Traverse<'a, TransformState<'a>> for TypeScriptEnum {
+    fn enter_statements(
+        &mut self,
+        stmts: &mut ArenaVec<'a, Statement<'a>>,
+        ctx: &mut TraverseCtx<'a>,
+    ) {
+        // Remove enum declarations that will be fully inlined,
+        // before traversing their children.
+        stmts.retain(|stmt| !self.should_remove_enum_statement(stmt, ctx));
+    }
+
     fn enter_statement(&mut self, stmt: &mut Statement<'a>, ctx: &mut TraverseCtx<'a>) {
         match stmt {
             Statement::TSEnumDeclaration(ts_enum_decl) => {
-                if let Some(new_stmt) = self.transform_ts_enum(ts_enum_decl, None, ctx) {
+                // `should_remove_enum_statement` already removed declarations that
+                // should be dropped, so any remaining enum needs transformation.
+                if let Some(new_stmt) = Self::transform_ts_enum(ts_enum_decl, None, ctx) {
                     *stmt = new_stmt;
-                } else {
-                    // Const enum removed by optimize_const_enums.
-                    // (declare enums are already removed by annotations.rs enter_statements)
-                    *stmt = ctx.ast.statement_empty(SPAN);
                 }
             }
             Statement::ExportNamedDeclaration(decl) => {
                 let span = decl.span;
                 if let Some(Declaration::TSEnumDeclaration(ts_enum_decl)) = &mut decl.declaration
-                    && let Some(new_stmt) = self.transform_ts_enum(ts_enum_decl, Some(span), ctx)
+                    && let Some(new_stmt) = Self::transform_ts_enum(ts_enum_decl, Some(span), ctx)
                 {
                     *stmt = new_stmt;
                 }
@@ -91,24 +99,11 @@ impl<'a> TypeScriptEnum {
     /// })(Foo || {});
     /// ```
     fn transform_ts_enum(
-        &self,
         decl: &mut TSEnumDeclaration<'a>,
         export_span: Option<Span>,
         ctx: &mut TraverseCtx<'a>,
     ) -> Option<Statement<'a>> {
         if decl.declare {
-            return None;
-        }
-
-        // Remove non-exported const enum declarations when all members are evaluable.
-        // All same-file references are inlined by enter_expression.
-        // Exported const enums are kept — cross-module consumers are handled by the bundler.
-        // Const enums with non-evaluable members are also kept (references can't be inlined).
-        if decl.r#const
-            && self.optimize_const_enums
-            && export_span.is_none()
-            && Self::all_members_evaluable(decl, ctx)
-        {
             return None;
         }
 
@@ -350,6 +345,21 @@ impl<'a> TypeScriptEnum {
         statements.push(return_stmt);
 
         statements
+    }
+
+    /// Check if an enum statement should be removed entirely.
+    /// Returns true for non-exported const enum declarations where all members
+    /// are evaluable and `optimize_const_enums` is enabled.
+    fn should_remove_enum_statement(
+        &self,
+        stmt: &Statement<'a>,
+        ctx: &TraverseCtx<'a>,
+    ) -> bool {
+        let Statement::TSEnumDeclaration(decl) = stmt else { return false };
+        !decl.declare
+            && decl.r#const
+            && self.optimize_const_enums
+            && Self::all_members_evaluable(decl, ctx)
     }
 
     /// Check if all members of an enum declaration have known constant values.

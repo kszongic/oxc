@@ -1,6 +1,6 @@
 commit: 87a048db
 
-Passed: 206/342
+Passed: 206/353
 
 # All Passed:
 * babel-plugin-transform-class-static-block
@@ -69,7 +69,7 @@ after transform: SymbolId(0): [ReferenceId(0), ReferenceId(2), ReferenceId(6), R
 rebuilt        : SymbolId(0): [ReferenceId(0), ReferenceId(2), ReferenceId(6), ReferenceId(10)]
 
 
-# babel-plugin-transform-typescript (7/31)
+# babel-plugin-transform-typescript (7/42)
 * allow-declare-fields-false/input.ts
 Unresolved references mismatch:
 after transform: ["dce"]
@@ -437,6 +437,39 @@ rebuilt        : SymbolId(0): Span { start: 0, end: 0 }
 Symbol redeclarations mismatch for "Foo":
 after transform: SymbolId(0): [Span { start: 17, end: 20 }, Span { start: 62, end: 65 }]
 rebuilt        : SymbolId(0): []
+
+* optimize-enums/auto-increment-after-string/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+
+* optimize-enums/basic/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+
+* optimize-enums/binary-expressions/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+
+* optimize-enums/cross-enum-reference/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+
+* optimize-enums/cross-member-reference/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+
+* optimize-enums/exported-not-removed/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+
+* optimize-enums/merged-enum/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+
+* optimize-enums/non-evaluable-kept/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+
+* optimize-enums/string-values/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+
+* optimize-enums/template-literal/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+
+* optimize-enums/unary-expressions/input.ts
+transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
 
 * preserve-import-=/input.js
 Symbol reference IDs mismatch for "Foo":

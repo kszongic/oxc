@@ -212,6 +212,7 @@ impl<'a> Traverse<'a, TransformState<'a>> for TypeScript<'a> {
         stmts: &mut ArenaVec<'a, Statement<'a>>,
         ctx: &mut TraverseCtx<'a>,
     ) {
+        self.r#enum.enter_statements(stmts, ctx);
         self.annotations.enter_statements(stmts, ctx);
     }
 
