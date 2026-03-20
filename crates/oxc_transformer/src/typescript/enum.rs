@@ -19,11 +19,12 @@ use crate::{context::TraverseCtx, state::TransformState};
 
 pub struct TypeScriptEnum {
     optimize_const_enums: bool,
+    optimize_enums: bool,
 }
 
 impl TypeScriptEnum {
-    pub fn new(optimize_const_enums: bool) -> Self {
-        Self { optimize_const_enums }
+    pub fn new(optimize_const_enums: bool, optimize_enums: bool) -> Self {
+        Self { optimize_const_enums, optimize_enums }
     }
 }
 
@@ -33,9 +34,19 @@ impl<'a> Traverse<'a, TransformState<'a>> for TypeScriptEnum {
         stmts: &mut ArenaVec<'a, Statement<'a>>,
         ctx: &mut TraverseCtx<'a>,
     ) {
+        // Collect names re-exported via `export { Foo }` before mutating the list.
+        let reexported_names: Vec<Ident> = Self::collect_reexported_names(stmts);
+
         // Remove enum declarations that will be fully inlined,
         // before traversing their children.
-        stmts.retain(|stmt| !self.should_remove_enum_statement(stmt, ctx));
+        stmts.retain(|stmt| {
+            if !self.should_remove_enum_statement(stmt, ctx) {
+                return true;
+            }
+            let Statement::TSEnumDeclaration(decl) = stmt else { return true };
+            // Keep if re-exported via `export { Foo }`.
+            reexported_names.contains(&decl.id.name)
+        });
     }
 
     fn enter_statement(&mut self, stmt: &mut Statement<'a>, ctx: &mut TraverseCtx<'a>) {
@@ -60,16 +71,16 @@ impl<'a> Traverse<'a, TransformState<'a>> for TypeScriptEnum {
     }
 
     fn enter_expression(&mut self, expr: &mut Expression<'a>, ctx: &mut TraverseCtx<'a>) {
-        if !self.optimize_const_enums {
+        if !self.optimize_const_enums && !self.optimize_enums {
             return;
         }
 
         let value = match expr {
             Expression::StaticMemberExpression(member_expr) => {
-                Self::try_inline_enum_member(member_expr, ctx)
+                self.try_inline_enum_member(member_expr, ctx)
             }
             Expression::ComputedMemberExpression(member_expr) => {
-                Self::try_inline_computed_enum_member(member_expr, ctx)
+                self.try_inline_computed_enum_member(member_expr, ctx)
             }
             _ => None,
         };
@@ -348,18 +359,40 @@ impl<'a> TypeScriptEnum {
     }
 
     /// Check if an enum statement should be removed entirely.
-    /// Returns true for non-exported const enum declarations where all members
-    /// are evaluable and `optimize_const_enums` is enabled.
+    /// Returns true for non-exported enum declarations where all members are evaluable
+    /// and the corresponding optimization is enabled.
     fn should_remove_enum_statement(
         &self,
         stmt: &Statement<'a>,
         ctx: &TraverseCtx<'a>,
     ) -> bool {
         let Statement::TSEnumDeclaration(decl) = stmt else { return false };
-        !decl.declare
-            && decl.r#const
-            && self.optimize_const_enums
-            && Self::all_members_evaluable(decl, ctx)
+        if decl.declare {
+            return false;
+        }
+        let should_optimize = if decl.r#const {
+            self.optimize_const_enums
+        } else {
+            self.optimize_enums
+        };
+        should_optimize && Self::all_members_evaluable(decl, ctx)
+    }
+
+    /// Collect names that are re-exported via `export { Foo }` clauses.
+    /// Enum declarations with these names must not be removed.
+    fn collect_reexported_names(stmts: &ArenaVec<'a, Statement<'a>>) -> Vec<Ident<'a>> {
+        let mut names = Vec::new();
+        for stmt in stmts {
+            let Statement::ExportNamedDeclaration(export) = stmt else { continue };
+            // Only check `export { Foo }` clauses (no declaration attached).
+            if export.declaration.is_some() {
+                continue;
+            }
+            for spec in &export.specifiers {
+                names.push(spec.local.name().into());
+            }
+        }
+        names
     }
 
     /// Check if all members of an enum declaration have known constant values.
@@ -406,25 +439,30 @@ impl<'a> TypeScriptEnum {
 
     /// Try to inline `Direction.Up` to its literal value.
     fn try_inline_enum_member(
+        &self,
         expr: &StaticMemberExpression<'a>,
         ctx: &TraverseCtx<'a>,
     ) -> Option<ConstantValue> {
         let Expression::Identifier(ident) = &expr.object else { return None };
-        Self::resolve_enum_member(ident, expr.property.name.as_str(), ctx)
+        self.resolve_enum_member(ident, expr.property.name.as_str(), ctx)
     }
 
     /// Try to inline `Foo["%/*"]` to its literal value.
     fn try_inline_computed_enum_member(
+        &self,
         expr: &ComputedMemberExpression<'a>,
         ctx: &TraverseCtx<'a>,
     ) -> Option<ConstantValue> {
         let Expression::Identifier(ident) = &expr.object else { return None };
         let Expression::StringLiteral(prop) = &expr.expression else { return None };
-        Self::resolve_enum_member(ident, prop.value.as_str(), ctx)
+        self.resolve_enum_member(ident, prop.value.as_str(), ctx)
     }
 
-    /// Resolve a const enum member value by identifier and property name.
+    /// Resolve an enum member value by identifier and property name.
+    /// Inlines const enums when `optimize_const_enums` is set,
+    /// and regular enums when `optimize_enums` is set.
     fn resolve_enum_member(
+        &self,
         ident: &IdentifierReference<'a>,
         property_name: &str,
         ctx: &TraverseCtx<'a>,
@@ -432,7 +470,10 @@ impl<'a> TypeScriptEnum {
         let ref_id = ident.reference_id.get()?;
         let symbol_id = ctx.scoping().get_reference(ref_id).symbol_id()?;
 
-        if !ctx.scoping().symbol_flags(symbol_id).is_const_enum() {
+        let flags = ctx.scoping().symbol_flags(symbol_id);
+        let is_const_enum = flags.is_const_enum() && self.optimize_const_enums;
+        let is_regular_enum = flags.contains(SymbolFlags::RegularEnum) && self.optimize_enums;
+        if !is_const_enum && !is_regular_enum {
             return None;
         }
 

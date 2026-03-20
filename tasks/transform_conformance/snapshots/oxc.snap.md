@@ -1,6 +1,6 @@
 commit: 87a048db
 
-Passed: 206/353
+Passed: 206/354
 
 # All Passed:
 * babel-plugin-transform-class-static-block
@@ -69,7 +69,7 @@ after transform: SymbolId(0): [ReferenceId(0), ReferenceId(2), ReferenceId(6), R
 rebuilt        : SymbolId(0): [ReferenceId(0), ReferenceId(2), ReferenceId(6), ReferenceId(10)]
 
 
-# babel-plugin-transform-typescript (7/42)
+# babel-plugin-transform-typescript (7/43)
 * allow-declare-fields-false/input.ts
 Unresolved references mismatch:
 after transform: ["dce"]
@@ -439,37 +439,112 @@ after transform: SymbolId(0): [Span { start: 17, end: 20 }, Span { start: 62, en
 rebuilt        : SymbolId(0): []
 
 * optimize-enums/auto-increment-after-string/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(1): ["A", "B", "Mixed"]
+rebuilt        : ScopeId(1): ["Mixed"]
+Scope flags mismatch:
+after transform: ScopeId(1): ScopeFlags(0x0)
+rebuilt        : ScopeId(1): ScopeFlags(Function)
+Symbol flags mismatch for "Mixed":
+after transform: SymbolId(0): SymbolFlags(RegularEnum)
+rebuilt        : SymbolId(0): SymbolFlags(FunctionScopedVariable)
+Symbol reference IDs mismatch for "Mixed":
+after transform: SymbolId(0): [ReferenceId(0), ReferenceId(1), ReferenceId(7)]
+rebuilt        : SymbolId(0): [ReferenceId(5), ReferenceId(6)]
 
 * optimize-enums/basic/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(0): ["Direction"]
+rebuilt        : ScopeId(0): []
 
 * optimize-enums/binary-expressions/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(0): ["Flags"]
+rebuilt        : ScopeId(0): []
 
 * optimize-enums/cross-enum-reference/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(0): ["A", "B"]
+rebuilt        : ScopeId(0): []
 
 * optimize-enums/cross-member-reference/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(0): ["A"]
+rebuilt        : ScopeId(0): []
 
 * optimize-enums/exported-not-removed/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(1): ["Direction", "Down", "Up"]
+rebuilt        : ScopeId(1): ["Direction"]
+Scope flags mismatch:
+after transform: ScopeId(1): ScopeFlags(0x0)
+rebuilt        : ScopeId(1): ScopeFlags(Function)
+Symbol flags mismatch for "Direction":
+after transform: SymbolId(0): SymbolFlags(RegularEnum)
+rebuilt        : SymbolId(0): SymbolFlags(BlockScopedVariable)
+Symbol reference IDs mismatch for "Direction":
+after transform: SymbolId(0): [ReferenceId(0)]
+rebuilt        : SymbolId(0): []
 
 * optimize-enums/merged-enum/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(0): ["Foo"]
+rebuilt        : ScopeId(0): []
+Unresolved references mismatch:
+after transform: ["A"]
+rebuilt        : []
 
 * optimize-enums/non-evaluable-kept/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(1): ["Runtime", "X", "Y"]
+rebuilt        : ScopeId(1): ["Runtime"]
+Scope flags mismatch:
+after transform: ScopeId(1): ScopeFlags(0x0)
+rebuilt        : ScopeId(1): ScopeFlags(Function)
+Symbol flags mismatch for "Runtime":
+after transform: SymbolId(0): SymbolFlags(RegularEnum)
+rebuilt        : SymbolId(0): SymbolFlags(FunctionScopedVariable)
+
+* optimize-enums/re-exported-not-removed/input.ts
+Bindings mismatch:
+after transform: ScopeId(1): ["A", "X"]
+rebuilt        : ScopeId(1): ["A"]
+Scope flags mismatch:
+after transform: ScopeId(1): ScopeFlags(0x0)
+rebuilt        : ScopeId(1): ScopeFlags(Function)
+Bindings mismatch:
+after transform: ScopeId(2): ["B", "Y"]
+rebuilt        : ScopeId(2): ["B"]
+Scope flags mismatch:
+after transform: ScopeId(2): ScopeFlags(0x0)
+rebuilt        : ScopeId(2): ScopeFlags(Function)
+Symbol flags mismatch for "A":
+after transform: SymbolId(0): SymbolFlags(RegularEnum)
+rebuilt        : SymbolId(0): SymbolFlags(FunctionScopedVariable)
+Symbol reference IDs mismatch for "A":
+after transform: SymbolId(0): [ReferenceId(0), ReferenceId(2), ReferenceId(7)]
+rebuilt        : SymbolId(0): [ReferenceId(3), ReferenceId(7)]
+Symbol flags mismatch for "B":
+after transform: SymbolId(2): SymbolFlags(RegularEnum)
+rebuilt        : SymbolId(2): SymbolFlags(FunctionScopedVariable)
+Symbol reference IDs mismatch for "B":
+after transform: SymbolId(2): [ReferenceId(1), ReferenceId(3), ReferenceId(10)]
+rebuilt        : SymbolId(2): [ReferenceId(6), ReferenceId(8)]
 
 * optimize-enums/string-values/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(0): ["Color"]
+rebuilt        : ScopeId(0): []
 
 * optimize-enums/template-literal/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(0): ["Str"]
+rebuilt        : ScopeId(0): []
 
 * optimize-enums/unary-expressions/input.ts
-transform-typescript: unknown field `optimizeEnums`, expected one of `jsxPragma`, `jsxPragmaFrag`, `onlyRemoveTypeImports`, `allowNamespaces`, `allowDeclareFields`, `removeClassFieldsWithoutInitializer`, `optimizeConstEnums`, `rewriteImportExtensions`
+Bindings mismatch:
+after transform: ScopeId(0): ["Unary"]
+rebuilt        : ScopeId(0): []
 
 * preserve-import-=/input.js
 Symbol reference IDs mismatch for "Foo":

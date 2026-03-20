@@ -89,6 +89,15 @@ pub struct TypeScriptOptions {
     /// and removing the enum declaration.
     pub optimize_const_enums: bool,
 
+    /// When true, optimize regular (non-const) enums by inlining their member
+    /// accesses at usage sites when the member value is statically known.
+    ///
+    /// Non-exported enum declarations are also removed when all members are
+    /// evaluable and every reference to the enum was successfully inlined
+    /// (i.e., no non-member-access usages like reverse mappings or passing
+    /// the enum as a value exist).
+    pub optimize_enums: bool,
+
     // Preset options
     /// Modifies extensions in import and export declarations.
     ///
@@ -110,6 +119,7 @@ impl Default for TypeScriptOptions {
             allow_declare_fields: default_as_true(),
             remove_class_fields_without_initializer: false,
             optimize_const_enums: false,
+            optimize_enums: false,
             rewrite_import_extensions: None,
         }
     }
