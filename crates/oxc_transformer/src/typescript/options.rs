@@ -93,9 +93,8 @@ pub struct TypeScriptOptions {
     /// accesses at usage sites when the member value is statically known.
     ///
     /// Non-exported enum declarations are also removed when all members are
-    /// evaluable and every reference to the enum was successfully inlined
-    /// (i.e., no non-member-access usages like reverse mappings or passing
-    /// the enum as a value exist).
+    /// evaluable and no references to the enum as a runtime value exist
+    /// (e.g., `console.log(Foo)`, `typeof Foo`, or passing the enum as an argument).
     pub optimize_enums: bool,
 
     // Preset options

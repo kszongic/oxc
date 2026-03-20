@@ -1,6 +1,6 @@
 commit: 87a048db
 
-Passed: 206/354
+Passed: 206/357
 
 # All Passed:
 * babel-plugin-transform-class-static-block
@@ -69,7 +69,7 @@ after transform: SymbolId(0): [ReferenceId(0), ReferenceId(2), ReferenceId(6), R
 rebuilt        : SymbolId(0): [ReferenceId(0), ReferenceId(2), ReferenceId(6), ReferenceId(10)]
 
 
-# babel-plugin-transform-typescript (7/43)
+# babel-plugin-transform-typescript (7/46)
 * allow-declare-fields-false/input.ts
 Unresolved references mismatch:
 after transform: ["dce"]
@@ -505,6 +505,20 @@ Symbol flags mismatch for "Runtime":
 after transform: SymbolId(0): SymbolFlags(RegularEnum)
 rebuilt        : SymbolId(0): SymbolFlags(FunctionScopedVariable)
 
+* optimize-enums/passed-as-argument-kept/input.ts
+Bindings mismatch:
+after transform: ScopeId(1): ["Active", "Inactive", "Status"]
+rebuilt        : ScopeId(1): ["Status"]
+Scope flags mismatch:
+after transform: ScopeId(1): ScopeFlags(0x0)
+rebuilt        : ScopeId(1): ScopeFlags(Function)
+Symbol flags mismatch for "Status":
+after transform: SymbolId(0): SymbolFlags(RegularEnum)
+rebuilt        : SymbolId(0): SymbolFlags(FunctionScopedVariable)
+Symbol reference IDs mismatch for "Status":
+after transform: SymbolId(0): [ReferenceId(0), ReferenceId(2), ReferenceId(8)]
+rebuilt        : SymbolId(0): [ReferenceId(5), ReferenceId(7)]
+
 * optimize-enums/re-exported-not-removed/input.ts
 Bindings mismatch:
 after transform: ScopeId(1): ["A", "X"]
@@ -541,10 +555,38 @@ Bindings mismatch:
 after transform: ScopeId(0): ["Str"]
 rebuilt        : ScopeId(0): []
 
+* optimize-enums/typeof-kept/input.ts
+Bindings mismatch:
+after transform: ScopeId(1): ["Bar", "X"]
+rebuilt        : ScopeId(1): ["Bar"]
+Scope flags mismatch:
+after transform: ScopeId(1): ScopeFlags(0x0)
+rebuilt        : ScopeId(1): ScopeFlags(Function)
+Symbol flags mismatch for "Bar":
+after transform: SymbolId(0): SymbolFlags(RegularEnum)
+rebuilt        : SymbolId(0): SymbolFlags(FunctionScopedVariable)
+Symbol reference IDs mismatch for "Bar":
+after transform: SymbolId(0): [ReferenceId(0), ReferenceId(1), ReferenceId(4)]
+rebuilt        : SymbolId(0): [ReferenceId(2), ReferenceId(3)]
+
 * optimize-enums/unary-expressions/input.ts
 Bindings mismatch:
 after transform: ScopeId(0): ["Unary"]
 rebuilt        : ScopeId(0): []
+
+* optimize-enums/value-usage-kept/input.ts
+Bindings mismatch:
+after transform: ScopeId(1): ["A", "B", "Foo"]
+rebuilt        : ScopeId(1): ["Foo"]
+Scope flags mismatch:
+after transform: ScopeId(1): ScopeFlags(0x0)
+rebuilt        : ScopeId(1): ScopeFlags(Function)
+Symbol flags mismatch for "Foo":
+after transform: SymbolId(0): SymbolFlags(RegularEnum)
+rebuilt        : SymbolId(0): SymbolFlags(FunctionScopedVariable)
+Symbol reference IDs mismatch for "Foo":
+after transform: SymbolId(0): [ReferenceId(0), ReferenceId(2), ReferenceId(8)]
+rebuilt        : SymbolId(0): [ReferenceId(5), ReferenceId(7)]
 
 * preserve-import-=/input.js
 Symbol reference IDs mismatch for "Foo":

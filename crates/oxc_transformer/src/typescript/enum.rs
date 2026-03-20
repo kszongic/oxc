@@ -1,10 +1,10 @@
-use std::cell::Cell;
+use std::{cell::Cell, marker::PhantomData};
 
 use oxc_allocator::{TakeIn, Vec as ArenaVec};
 use oxc_ast::{NONE, ast::*};
-use oxc_ast_visit::{VisitMut, walk_mut};
+use oxc_ast_visit::{Visit, VisitMut, walk, walk_mut};
 use oxc_data_structures::stack::NonEmptyStack;
-use oxc_semantic::{ScopeFlags, ScopeId};
+use oxc_semantic::{ScopeFlags, ScopeId, Scoping, SymbolId};
 use oxc_span::{Ident, SPAN, Span};
 use oxc_syntax::{
     constant_value::ConstantValue,
@@ -14,6 +14,7 @@ use oxc_syntax::{
     symbol::SymbolFlags,
 };
 use oxc_traverse::{BoundIdentifier, Traverse};
+use rustc_hash::FxHashSet;
 
 use crate::{context::TraverseCtx, state::TransformState};
 
@@ -34,18 +35,56 @@ impl<'a> Traverse<'a, TransformState<'a>> for TypeScriptEnum {
         stmts: &mut ArenaVec<'a, Statement<'a>>,
         ctx: &mut TraverseCtx<'a>,
     ) {
-        // Collect names re-exported via `export { Foo }` before mutating the list.
-        let reexported_names: Vec<Ident> = Self::collect_reexported_names(stmts);
+        if !self.optimize_const_enums && !self.optimize_enums {
+            return;
+        }
 
-        // Remove enum declarations that will be fully inlined,
-        // before traversing their children.
-        stmts.retain(|stmt| {
+        // Collect names re-exported via `export { Foo }` before mutating the list.
+        let reexported_names: FxHashSet<Ident> = Self::collect_reexported_names(stmts);
+
+        // Collect candidate enum symbols for removal, separating const and regular enums.
+        // Const enums are always removed per TypeScript spec (no value-usage check needed).
+        // Regular enums need a value-usage scan before removal.
+        let mut const_candidates: FxHashSet<SymbolId> = FxHashSet::default();
+        let mut regular_candidates: FxHashSet<SymbolId> = FxHashSet::default();
+        for stmt in stmts.iter() {
             if !self.should_remove_enum_statement(stmt, ctx) {
-                return true;
+                continue;
             }
+            let Statement::TSEnumDeclaration(decl) = stmt else { continue };
+            if reexported_names.contains(&decl.id.name) {
+                continue;
+            }
+            if decl.r#const {
+                const_candidates.insert(decl.id.symbol_id());
+            } else {
+                regular_candidates.insert(decl.id.symbol_id());
+            }
+        }
+
+        if const_candidates.is_empty() && regular_candidates.is_empty() {
+            return;
+        }
+
+        // Pre-scan for value usages of regular enums only.
+        // Enums used as runtime values (e.g., console.log(Foo)) must not be removed.
+        let value_used = if regular_candidates.is_empty() {
+            FxHashSet::default()
+        } else {
+            Self::scan_value_usages(&regular_candidates, stmts, ctx)
+        };
+
+        // Remove enum declarations that are safe to remove.
+        stmts.retain(|stmt| {
             let Statement::TSEnumDeclaration(decl) = stmt else { return true };
-            // Keep if re-exported via `export { Foo }`.
-            reexported_names.contains(&decl.id.name)
+            let sym_id = decl.id.symbol_id();
+            if const_candidates.contains(&sym_id) {
+                return false; // Always remove const enums
+            }
+            if regular_candidates.contains(&sym_id) {
+                return value_used.contains(&sym_id); // Keep only if has value usage
+            }
+            true
         });
     }
 
@@ -373,8 +412,8 @@ impl<'a> TypeScriptEnum {
 
     /// Collect names that are re-exported via `export { Foo }` clauses.
     /// Enum declarations with these names must not be removed.
-    fn collect_reexported_names(stmts: &ArenaVec<'a, Statement<'a>>) -> Vec<Ident<'a>> {
-        let mut names = Vec::new();
+    fn collect_reexported_names(stmts: &ArenaVec<'a, Statement<'a>>) -> FxHashSet<Ident<'a>> {
+        let mut names = FxHashSet::default();
         for stmt in stmts {
             let Statement::ExportNamedDeclaration(export) = stmt else { continue };
             // Only check `export { Foo }` clauses (no declaration attached).
@@ -382,10 +421,28 @@ impl<'a> TypeScriptEnum {
                 continue;
             }
             for spec in &export.specifiers {
-                names.push(spec.local.name().into());
+                names.insert(spec.local.name().into());
             }
         }
         names
+    }
+
+    /// Pre-scan non-enum statements for value (non-member-access) usages
+    /// of candidate enum symbols.
+    fn scan_value_usages(
+        candidates: &FxHashSet<SymbolId>,
+        stmts: &ArenaVec<'a, Statement<'a>>,
+        ctx: &TraverseCtx<'a>,
+    ) -> FxHashSet<SymbolId> {
+        let mut detector = EnumValueUsageDetector::new(candidates, ctx.scoping());
+        for stmt in stmts {
+            // Skip enum declarations — their internal references don't count
+            if matches!(stmt, Statement::TSEnumDeclaration(_)) {
+                continue;
+            }
+            detector.visit_statement(stmt);
+        }
+        detector.value_used
     }
 
     /// Check if all members of an enum declaration have known constant values.
@@ -480,6 +537,89 @@ impl<'a> TypeScriptEnum {
             }
         }
         None
+    }
+}
+
+/// Detects non-member-access (value) usages of enum symbols.
+/// Used to determine if an enum declaration can be safely removed.
+///
+/// Overrides member expression visitors to suppress visiting the object
+/// when it's an inlinable enum access. Any identifier reference that
+/// reaches `visit_identifier_reference` is a value usage that prevents removal.
+struct EnumValueUsageDetector<'a, 'b> {
+    candidates: &'b FxHashSet<SymbolId>,
+    value_used: FxHashSet<SymbolId>,
+    scoping: &'b Scoping,
+    _phantom: PhantomData<&'a ()>,
+}
+
+impl<'a, 'b> EnumValueUsageDetector<'a, 'b> {
+    fn new(candidates: &'b FxHashSet<SymbolId>, scoping: &'b Scoping) -> Self {
+        Self { candidates, value_used: FxHashSet::default(), scoping, _phantom: PhantomData }
+    }
+
+    /// Check if a member access on the given enum symbol can be inlined.
+    fn can_inline_member(&self, enum_sym: SymbolId, member_name: &str) -> bool {
+        let Some(body_scopes) = self.scoping.get_enum_body_scopes(enum_sym) else {
+            return false;
+        };
+        body_scopes.iter().any(|&scope_id| {
+            self.scoping
+                .get_binding(scope_id, member_name.into())
+                .and_then(|sym_id| self.scoping.get_enum_member_value(sym_id))
+                .is_some()
+        })
+    }
+
+    /// If the expression is an identifier referencing a candidate enum, return its SymbolId.
+    fn resolve_candidate_enum(&self, expr: &Expression<'a>) -> Option<SymbolId> {
+        let Expression::Identifier(ident) = expr else { return None };
+        let ref_id = ident.reference_id.get()?;
+        let symbol_id = self.scoping.get_reference(ref_id).symbol_id()?;
+        self.candidates.contains(&symbol_id).then_some(symbol_id)
+    }
+}
+
+impl<'a> Visit<'a> for EnumValueUsageDetector<'a, '_> {
+    fn visit_static_member_expression(&mut self, it: &StaticMemberExpression<'a>) {
+        if let Some(sym_id) = self.resolve_candidate_enum(&it.object) {
+            if !self.can_inline_member(sym_id, it.property.name.as_str()) {
+                // Member access that can't be inlined — enum object is needed at runtime
+                self.value_used.insert(sym_id);
+            }
+            // Either way, don't walk into the object (it's a member access, not a value usage)
+            return;
+        }
+        walk::walk_static_member_expression(self, it);
+    }
+
+    fn visit_computed_member_expression(&mut self, it: &ComputedMemberExpression<'a>) {
+        if let Some(sym_id) = self.resolve_candidate_enum(&it.object) {
+            if let Expression::StringLiteral(prop) = &it.expression
+                && self.can_inline_member(sym_id, prop.value.as_str())
+            {
+                return; // Inlinable — not a value usage
+            }
+            // Non-inlinable computed access — enum object needed
+            self.value_used.insert(sym_id);
+            return;
+        }
+        walk::walk_computed_member_expression(self, it);
+    }
+
+    fn visit_identifier_reference(&mut self, it: &IdentifierReference<'a>) {
+        // This identifier is NOT in a member-expression-object position
+        // (those are handled above). If it references a candidate enum, it's a value usage.
+        let Some(ref_id) = it.reference_id.get() else { return };
+        let Some(symbol_id) = self.scoping.get_reference(ref_id).symbol_id() else { return };
+        if self.candidates.contains(&symbol_id) {
+            self.value_used.insert(symbol_id);
+        }
+    }
+
+    fn visit_ts_enum_declaration(&mut self, _it: &TSEnumDeclaration<'a>) {
+        // Skip enum bodies — cross-enum references in initializers are consumed
+        // by semantic evaluation during transformation, not runtime value usages.
     }
 }
 
