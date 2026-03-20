@@ -350,11 +350,7 @@ impl<'a> TypeScriptEnum {
     /// Check if an enum statement should be removed entirely.
     /// Returns true for non-exported const enum declarations where all members
     /// are evaluable and `optimize_const_enums` is enabled.
-    fn should_remove_enum_statement(
-        &self,
-        stmt: &Statement<'a>,
-        ctx: &TraverseCtx<'a>,
-    ) -> bool {
+    fn should_remove_enum_statement(&self, stmt: &Statement<'a>, ctx: &TraverseCtx<'a>) -> bool {
         let Statement::TSEnumDeclaration(decl) = stmt else { return false };
         !decl.declare
             && decl.r#const
