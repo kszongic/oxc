@@ -26,7 +26,9 @@ use crate::{
 };
 
 fn always_return_diagnostic(span: Span) -> OxcDiagnostic {
-    OxcDiagnostic::warn("Each then() should return a value or throw").with_label(span)
+    OxcDiagnostic::warn("Each then() should return a value or throw")
+        .with_help("Return a value from the `then()` callback or throw an error. This ensures the promise chain propagates a value to subsequent handlers.")
+        .with_label(span)
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]
