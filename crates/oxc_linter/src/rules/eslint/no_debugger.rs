@@ -6,7 +6,9 @@ use oxc_span::Span;
 use crate::{AstNode, context::LintContext, rule::Rule};
 
 fn no_debugger_diagnostic(span: Span) -> OxcDiagnostic {
-    OxcDiagnostic::warn("`debugger` statement is not allowed").with_label(span)
+    OxcDiagnostic::warn("`debugger` statement is not allowed")
+        .with_help("Remove this `debugger` statement before committing. It is meant for debugging only and has no effect in production.")
+        .with_label(span)
 }
 
 const REMOVE_DEBUGGER: &str = "Remove the debugger statement";

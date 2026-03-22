@@ -9,7 +9,9 @@ use crate::{AstNode, context::LintContext, rule::Rule};
 pub struct NoUndefined;
 
 fn no_undefined_diagnostic(span: Span) -> OxcDiagnostic {
-    OxcDiagnostic::warn("Unexpected use of `undefined`").with_label(span)
+    OxcDiagnostic::warn("Unexpected use of `undefined`")
+        .with_help("Use `void 0` instead of `undefined` to avoid potential shadowing issues, or use `typeof` checks for safer comparisons.")
+        .with_label(span)
 }
 
 declare_oxc_lint!(
