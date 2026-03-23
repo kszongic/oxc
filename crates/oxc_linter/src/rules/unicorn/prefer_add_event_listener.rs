@@ -7,6 +7,7 @@ use crate::{AstNode, context::LintContext, rule::Rule};
 
 fn prefer_add_event_listener_diagnostic(span: Span) -> OxcDiagnostic {
     OxcDiagnostic::warn("Prefer `addEventListener()` over their `on`-function counterparts.")
+        .with_help("Use `addEventListener()` which supports multiple listeners and provides more control over event handling.")
         .with_label(span)
 }
 

@@ -7,8 +7,7 @@ use crate::{AstNode, context::LintContext, rule::Rule};
 
 fn no_static_only_class_diagnostic(span: Span) -> OxcDiagnostic {
     OxcDiagnostic::warn("Use an object instead of a `class` with only `static` members.")
-        .with_label(span)
-}
+        .with_help("Replace the class with a plain object literal or individual named exports.").with_label(span)`n}
 
 #[derive(Debug, Default, Clone)]
 pub struct NoStaticOnlyClass;

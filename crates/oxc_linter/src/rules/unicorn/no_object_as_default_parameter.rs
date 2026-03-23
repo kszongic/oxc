@@ -14,7 +14,9 @@ fn identifier(span: Span, param: &str) -> OxcDiagnostic {
 }
 
 fn non_identifier(span: Span) -> OxcDiagnostic {
-    OxcDiagnostic::warn("Do not use an object literal as default").with_label(span)
+    OxcDiagnostic::warn("Do not use an object literal as default")
+        .with_help("Accept individual options as parameters or require callers to pass the object explicitly.")
+        .with_label(span)
 }
 
 #[derive(Debug, Default, Clone)]

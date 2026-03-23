@@ -10,7 +10,9 @@ use oxc_span::{GetSpan, Span};
 use crate::{AstNode, context::LintContext, rule::Rule};
 
 fn prefer_await_to_callbacks(span: Span) -> OxcDiagnostic {
-    OxcDiagnostic::warn("Prefer `async`/`await` to the callback pattern").with_label(span)
+    OxcDiagnostic::warn("Prefer `async`/`await` to the callback pattern")
+        .with_help("Refactor to use `async`/`await` for cleaner error handling and readability.")
+        .with_label(span)
 }
 
 #[derive(Debug, Default, Clone)]
